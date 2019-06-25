@@ -1,7 +1,6 @@
 # Table-Detection-PyTorch
 
-Step 1:-
-
+Step 1:
 ```
 git clone https://github.com/cocodataset/cocoapi.git
 cd cocoapi/PythonAPI
