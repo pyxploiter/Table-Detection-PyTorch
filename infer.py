@@ -1,11 +1,18 @@
+import os
+from skimage import transform as sktsf
+import cv2
 from PIL import Image
+import numpy as np
 import transforms as T
 import torch
 import torch.utils.data
 import torchvision
+from torchvision import transforms as tvtsf
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+
+import utils
 
 def get_model_resnet(num_classes):
     # load a model pre-trained pre-trained on COCO
@@ -62,19 +69,59 @@ model = get_model_resnet(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-model.load_state_dict(torch.load('saved_model/model3.pth'))
+model.load_state_dict(torch.load('saved_model/model37.pth'))
 model.to(device)
 
 model.eval()
 
-import cv2
-test_image = cv2.imread('data/test/AALADIN_03282019_2_GHS_Page_2.png')
-test_image = test_image.transpose((2, 0, 1))
-img = torch.from_numpy(test_image)
-img = img.float()
-print(img.shape)
+test_dir = "data/test/"
+test_images = os.listdir(test_dir)
 
-with torch.no_grad():
-    prediction = model([img.to(device)])
+for img_path in test_images:
+    img = utils.read_image(os.path.join(test_dir, img_path))
+    # Rescaling Images
+    C, H, W = img.shape
+    min_size = 600
+    max_size = 1024
+    scale1 = min_size / min(H, W)
+    scale2 = max_size / max(H, W)
+    scale = min(scale1, scale2)
+    img = img / 255.
+    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
 
-print(prediction)
+    # Normalizing image
+    normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225])
+    img = normalize(torch.from_numpy(img))
+
+    image_to_write = cv2.imread(os.path.join(test_dir, img_path))
+
+    with torch.no_grad():
+        prediction = model([img.to(device)])
+
+    predicted_boxes = []
+    for i in range(prediction[0]['boxes'].size()[0]):
+        if (prediction[0]['scores'][i] > 0.85):
+            box = prediction[0]['boxes'][i]
+            xmin = int(box[0].item())
+            ymin = int(box[1].item())
+            xmax = int(box[2].item())
+            ymax = int(box[3].item())
+            predicted_boxes.append([xmin, ymin, xmax, ymax])
+    
+    if (predicted_boxes):    
+        _, o_H, o_W = img.shape
+        bbox = np.stack(predicted_boxes).astype(np.float32)
+        resized_boxes = utils.resize_bbox(bbox, (o_H, o_W), (H, W))
+
+        boxes = []
+        for i in resized_boxes:
+            box = []
+            [box.append(int(b)) for b in i]
+            boxes.append(box)
+
+        for box in boxes:
+            cv2.rectangle(image_to_write, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 3)
+    
+    cv2.imwrite('output/'+img_path, image_to_write)
+    print(img_path)
