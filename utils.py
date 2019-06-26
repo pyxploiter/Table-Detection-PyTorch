@@ -93,8 +93,6 @@ def read_image(path, dtype=np.float32, color=True):
     """
 
     # f = Image.open(path)
-    img = cv2.imread(path)
-    img = img.astype('float32')
     # try:
     #     if color:
     #         img = f.convert('RGB')
@@ -104,6 +102,9 @@ def read_image(path, dtype=np.float32, color=True):
     # finally:
     #     if hasattr(f, 'close'):
     #         f.close()
+    
+    img = cv2.imread(path)
+    img = img.astype('float32')
 
     if img.ndim == 2:
         # reshape (H, W) -> (1, H, W)

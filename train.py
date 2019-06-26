@@ -27,17 +27,13 @@ class TableDataset(torch.utils.data.Dataset):
     def __init__(self, root, transforms=None):
         self.root = root
         self.transforms = transforms
-        # load all image files, sorting them to
-        # ensure that they are aligned
+        # load all image files
         self.imgs = list(sorted(os.listdir(os.path.join(root, "train"))))
-        #self.masks = list(sorted(os.listdir(os.path.join(root, "PedMasks"))))#
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.root, "train", self.imgs[idx])
         # image = Image.open(img_path).convert("RGB")
         image = utils.read_image(img_path)
-        # image = image.resize((600,600))
-        # print(image.shape)
 
         # Rescaling Images
         C, H, W = image.shape
@@ -56,7 +52,11 @@ class TableDataset(torch.utils.data.Dataset):
         image = image.numpy()
     
         train_labels = pd.read_csv('data/train.csv')
-        
+
+        ######## REMOVE THIS ###########
+        # old_img = cv2.imread(img_path)
+        ################################
+
         old_boxes = []
         num_objs = 0
         for i in range(train_labels['image_id'].count()):
@@ -67,20 +67,38 @@ class TableDataset(torch.utils.data.Dataset):
                 ymax = train_labels['ymax'][i]
                 num_objs += 1
                 old_boxes.append([xmin, ymin, xmax, ymax])
-        
+
+                ##################### REMOVE THIS #############################
+                # cv2.rectangle(old_img, (xmin, ymin), (xmax, ymax), (0, 0, 255), 3)
+                ###############################################################
+            
         # Rescale bounding box
         _, o_H, o_W = image.shape
         scale = o_H / H
         bbox = np.stack(old_boxes).astype(np.float32)
         resized_boxes = utils.resize_bbox(bbox, (H, W), (o_H, o_W))
+        
         boxes = []
         for i in resized_boxes:
             box = []
             [box.append(int(b)) for b in i]
             boxes.append(box)
-        # print('\n\nold:', old_boxes)
-        # print('new:', boxes)
-        
+
+        ##################### REMOVE THIS ##############################
+        # new_img = image.transpose((1, 2, 0))
+        # new_img = new_img * 255
+        # new_img = new_img.astype(np.uint8).copy()
+        # print(old_img.shape, new_img.shape)
+        # for box in boxes:
+        #     print(box)
+        #     cv2.rectangle(new_img, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 3)
+
+        # cv2.imwrite('old.png', old_img)
+        # cv2.imwrite('new.png', new_img)
+        # print('images saved')
+        #################################################################
+
+        # converting arrays into torch tensors
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
 
         # there is only one class
@@ -94,17 +112,14 @@ class TableDataset(torch.utils.data.Dataset):
         target = {}
         target["boxes"] = boxes
         target["labels"] = labels
-        # target["masks"] = masks
         target["image_id"] = image_id
         target["area"] = area
         target["iscrowd"] = iscrowd
 
         image = image.transpose((1,2,0))
-        # image = Image.fromarray(np.uint8(image))
+
         if self.transforms is not None:
-            # print(image.size)
             image, target = self.transforms(image, target)
-            # print(image[0])
 
         return image, target
 
@@ -218,7 +233,7 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
 # create the summary writer
 writer = SummaryWriter()
 # let's train it for 10 epochs
-num_epochs = 10
+num_epochs = 100
 step = 0
 # exit(0)
 for epoch in range(num_epochs):
@@ -230,7 +245,7 @@ for epoch in range(num_epochs):
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 30
-    lr_scheduler = None
+    # lr_scheduler = None
 
     if epoch == 0:
         warmup_factor = 1. / 1000
@@ -285,7 +300,8 @@ for epoch in range(num_epochs):
     # evaluate on the test dataset
     evaluate(model, data_loader_test, device=device)
 
-    torch.save(model.state_dict(), 'saved_model/model{}.pth'.format(epoch+1))
+    if (epoch%9 == 0):
+        torch.save(model.state_dict(), 'saved_model/model{}.pth'.format(epoch+1))
     
     torch.cuda.empty_cache()
 
