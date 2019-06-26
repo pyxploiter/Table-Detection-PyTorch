@@ -101,7 +101,7 @@ for img_path in test_images:
 
     predicted_boxes = []
     for i in range(prediction[0]['boxes'].size()[0]):
-        if (prediction[0]['scores'][i] > 0.85):
+        if (prediction[0]['scores'][i] > 0.6):
             box = prediction[0]['boxes'][i]
             xmin = int(box[0].item())
             ymin = int(box[1].item())
