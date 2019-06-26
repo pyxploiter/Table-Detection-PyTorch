@@ -6,6 +6,7 @@ import torchvision.models.detection.mask_rcnn
 from coco_utils import get_coco_api_from_dataset
 from coco_eval import CocoEvaluator
 import utils
+import csv
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     model.train()
@@ -51,14 +52,10 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         
-        # all_losses = {}
-        # for key, val in loss_dict.items():
-        #     all_losses[key] = val
-        #     # if (summary is not None):
-        #     #     summary.add_scalar(key, val.item(), epoch)
-        # all_losses["total_loss"] = loss_value
-        # return all_losses
-
+        l = list(loss_dict.values())
+        with open('tensorboard.csv', 'a+') as csvfile:
+            filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            filewriter.writerow(["Losses: ", l[0].item(), l[1].item(), l[2].item(), l[3].item(), loss_value, epoch])
 
 def _get_iou_types(model):
     model_without_ddp = model
