@@ -53,10 +53,6 @@ class TableDataset(torch.utils.data.Dataset):
     
         train_labels = pd.read_csv('data/train.csv')
 
-        ######## REMOVE THIS ###########
-        # old_img = cv2.imread(img_path)
-        ################################
-
         old_boxes = []
         num_objs = 0
         for i in range(train_labels['image_id'].count()):
@@ -67,36 +63,21 @@ class TableDataset(torch.utils.data.Dataset):
                 ymax = train_labels['ymax'][i]
                 num_objs += 1
                 old_boxes.append([xmin, ymin, xmax, ymax])
-
-                ##################### REMOVE THIS #############################
-                # cv2.rectangle(old_img, (xmin, ymin), (xmax, ymax), (0, 0, 255), 3)
-                ###############################################################
-            
+    
         # Rescale bounding box
         _, o_H, o_W = image.shape
         scale = o_H / H
         bbox = np.stack(old_boxes).astype(np.float32)
         resized_boxes = utils.resize_bbox(bbox, (H, W), (o_H, o_W))
         
+        # resized boxes are stacked (R, 4) 
+        # where R is the number of bboxes in the image 
+        # converted it back to simple 2d-array [[xmin1, ymin1, xmax1, ymax1], ...]
         boxes = []
         for i in resized_boxes:
             box = []
             [box.append(int(b)) for b in i]
             boxes.append(box)
-
-        ##################### REMOVE THIS ##############################
-        # new_img = image.transpose((1, 2, 0))
-        # new_img = new_img * 255
-        # new_img = new_img.astype(np.uint8).copy()
-        # print(old_img.shape, new_img.shape)
-        # for box in boxes:
-        #     print(box)
-        #     cv2.rectangle(new_img, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 3)
-
-        # cv2.imwrite('old.png', old_img)
-        # cv2.imwrite('new.png', new_img)
-        # print('images saved')
-        #################################################################
 
         # converting arrays into torch tensors
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
@@ -129,51 +110,12 @@ class TableDataset(torch.utils.data.Dataset):
 def get_model_resnet(num_classes):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # print((model.backbone.body))
-    # replace the classifier with a new one, that has
     # num_classes which is user-defined
     num_classes = 2  # 1 class (table) + background
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # print(model.roi_heads.box_predictor)
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-    # print(model)
-    return model
-
-def get_model_mobilenet(num_classes):
-    # load a pre-trained model for classification and return
-    # only the features
-    backbone = torchvision.models.mobilenet_v2(pretrained=True).features
-    # FasterRCNN needs to know the number of
-    # output channels in a backbone. For mobilenet_v2, it's 1280
-    # so we need to add it here
-    
-    backbone.out_channels = 1280
-    # let's make the RPN generate 5 x 3 anchors per spatial
-    # location, with 5 different sizes and 3 different aspect
-    # ratios. We have a Tuple[Tuple[int]] because each feature
-    # map could potentially have different sizes and
-    # aspect ratios 
-    anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
-                                       aspect_ratios=((0.5, 1.0, 2.0),))
-
-    # let's define what are the feature maps that we will
-    # use to perform the region of interest cropping, as well as
-    # the size of the crop after rescaling.
-    # if your backbone returns a Tensor, featmap_names is expected to
-    # be [0]. More generally, the backbone should return an
-    # OrderedDict[Tensor], and in featmap_names you can choose which
-    # feature maps to use.
-    roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
-                                                    output_size=7,
-                                                    sampling_ratio=2)
-
-    # put the pieces together inside a FasterRCNN model
-    model = FasterRCNN(backbone,
-                       num_classes=2,
-                       rpn_anchor_generator=anchor_generator,
-                       box_roi_pool=roi_pooler)
     return model
 
 def get_transform(train):
@@ -212,7 +154,6 @@ num_classes = 2
 
 # get the model using our helper function
 model = get_model_resnet(num_classes)
-# model = get_model_mobilenet(num_classes)
 
 # move model to the right device
 model.to(device)
@@ -234,7 +175,7 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
 writer = SummaryWriter()
 # let's train it for 10 epochs
 num_epochs = 100
-step = 0
+# step = 0
 
 for epoch in range(num_epochs):
     # train for one epoch, printing every 100 iterations
@@ -301,8 +242,8 @@ for epoch in range(num_epochs):
     # evaluate on the test dataset
     # evaluate(model, data_loader_test, device=device)
 
-    # if ((epoch+1)%10 == 0):
-    #     torch.save(model.state_dict(), 'saved_model/model{}-2.pth'.format(epoch+1))
+    if ((epoch+1)%10 == 0):
+        torch.save(model.state_dict(), 'saved_model/model{}-2.pth'.format(epoch+1))
     
     torch.cuda.empty_cache()
 
