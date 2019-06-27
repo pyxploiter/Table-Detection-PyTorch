@@ -192,6 +192,7 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
 # let's train it for 10 epochs
 num_epochs = options.num_epochs
 # step = 0
+# exit(0)
 
 print('[info] total epochs:', num_epochs)
 if options.check_freq:
@@ -203,8 +204,7 @@ for epoch in range(num_epochs):
     # train for one epoch, printing every 100 iterations
     train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
     ## you can paste train_one_epoch function code here ##
-    #     step += 1
-
+    
     #     # write scalars to tensorboard after 100 iterations
     #     if (step % 100 == 0):
     #         for key, val in loss_dict.items():
@@ -218,7 +218,6 @@ for epoch in range(num_epochs):
     lr_scheduler.step()
 
     # print('evaluating...')
-    # evaluate on the test dataset
     # evaluate(model, data_loader_test, device=device)
 
     # check if output_weight_path directory exists
@@ -235,5 +234,5 @@ for epoch in range(num_epochs):
         torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
 
     torch.cuda.empty_cache()
-
+print('[info] training is completed.')
 # writer.close()
