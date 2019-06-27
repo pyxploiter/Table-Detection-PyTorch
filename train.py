@@ -132,7 +132,7 @@ def get_model_resnet(num_classes):
     # print((model.backbone.body))
     # replace the classifier with a new one, that has
     # num_classes which is user-defined
-    num_classes = 2  # 1 class (person) + background
+    num_classes = 2  # 1 class (table) + background
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # print(model.roi_heads.box_predictor)
@@ -235,83 +235,75 @@ writer = SummaryWriter()
 # let's train it for 10 epochs
 num_epochs = 100
 step = 0
-# exit(0)
+
 for epoch in range(num_epochs):
-    # train for one epoch, printing every 10 iterations
-    # train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
-    model.train()
+    # train for one epoch, printing every 100 iterations
+    train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
+    # model.train()
 
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 30
-    # lr_scheduler = None
+    # metric_logger = utils.MetricLogger(delimiter="  ")
+    # metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    # header = 'Epoch: [{}]'.format(epoch)
+    # print_freq = 30
+    
+    # lr_scheduler1 = None
 
-    if epoch == 0:
-        warmup_factor = 1. / 1000
-        warmup_iters = min(1000, len(data_loader) - 1)
+    # if epoch == 0:
+    #     warmup_factor = 1. / 1000
+    #     warmup_iters = min(1000, len(data_loader) - 1)
 
-        lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+    #     lr_scheduler1 = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
-    for images, targets in metric_logger.log_every(data_loader, print_freq, header):
+    # for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         
-        images = list(image.to(device) for image in images)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    #     images = list(image.to(device) for image in images)
+    #     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        loss_dict = model(images, targets)
+    #     loss_dict = model(images, targets)
         
-        losses = sum(loss for loss in loss_dict.values())
+    #     losses = sum(loss for loss in loss_dict.values())
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = utils.reduce_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+    #     # reduce losses over all GPUs for logging purposes
+    #     loss_dict_reduced = utils.reduce_dict(loss_dict)
+    #     losses_reduced = sum(loss for loss in loss_dict_reduced.values())
         
-        loss_value = losses_reduced.item()
+    #     loss_value = losses_reduced.item()
         
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            print(loss_dict_reduced)
-            sys.exit(1)
+    #     if not math.isfinite(loss_value):
+    #         print("Loss is {}, stopping training".format(loss_value))
+    #         print(loss_dict_reduced)
+    #         sys.exit(1)
 
-        optimizer.zero_grad()
-        losses.backward()
-        optimizer.step()
+    #     optimizer.zero_grad()
+    #     losses.backward()
+    #     optimizer.step()
 
-        if lr_scheduler is not None:
-            lr_scheduler.step()
+    #     if lr_scheduler1 is not None:
+    #         lr_scheduler1.step()
 
-        metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-        step += 1
+    #     metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
+    #     metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+    #     step += 1
 
-        if (step % 100 == 0):
-            for key, val in loss_dict.items():
-                # all_losses[key] = val
-            #     # if (summary is not None):
-                writer.add_scalar(key, val.item(), step)
-            # all_losses["total_loss"] = loss_value
-            writer.add_scalar('loss: ', loss_value, step)
+    #     # write scalars to tensorboard after 100 iterations
+    #     if (step % 100 == 0):
+    #         for key, val in loss_dict.items():
+    #             # adding 4 losses one by one
+    #             writer.add_scalar(key, val.item(), step)
+    #         # adding total loss
+    #         writer.add_scalar('loss: ', loss_value, step)
 
     # update the learning rate
-    if lr_scheduler is not None:
-        lr_scheduler.step()
+    # if lr_scheduler is not None:
+    lr_scheduler.step()
 
-    print('evaluating...')
+    # print('evaluating...')
     # evaluate on the test dataset
-    evaluate(model, data_loader_test, device=device)
+    # evaluate(model, data_loader_test, device=device)
 
-    if ((epoch+1)%10 == 0):
-        torch.save(model.state_dict(), 'saved_model/model{}-2.pth'.format(epoch+1))
+    # if ((epoch+1)%10 == 0):
+    #     torch.save(model.state_dict(), 'saved_model/model{}-2.pth'.format(epoch+1))
     
     torch.cuda.empty_cache()
 
 writer.close()
-
-# pick one image from the test set
-# img, _ = dataset_test[0]
-# # put the model in evaluation mode
-# model.eval()
-# with torch.no_grad():
-#     prediction = model([img.to(device)])
-
-# print(prediction)
