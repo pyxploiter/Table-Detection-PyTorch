@@ -91,17 +91,6 @@ def read_image(path, dtype=np.float32, color=True):
     Returns:
         ~numpy.ndarray: An image.
     """
-
-    # f = Image.open(path)
-    # try:
-    #     if color:
-    #         img = f.convert('RGB')
-    #     else:
-    #         img = f.convert('P')
-    #     img = np.asarray(img, dtype=dtype)
-    # finally:
-    #     if hasattr(f, 'close'):
-    #         f.close()
     
     img = cv2.imread(path)
     img = img.astype('float32')
