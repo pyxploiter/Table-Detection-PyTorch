@@ -127,5 +127,5 @@ with open('predictions.csv', 'wt') as csvfile:
                             'no detections',
                             0
                         ])
-        cv2.imwrite('output/'+img_path, image_to_write)
+        cv2.imwrite('data/output/'+img_path, image_to_write)
         # print(img_path)
