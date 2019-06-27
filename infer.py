@@ -1,4 +1,6 @@
 import os
+import argparse
+
 from skimage import transform as sktsf
 import cv2
 from PIL import Image
@@ -15,16 +17,18 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 import utils
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-p", dest="test_path", help="Path to test data images.", default="data/test")
+parser.add_argument("-c", dest="input_checkpoint", help="Input checkpoint file path.", required=True)
+
+options = parser.parse_args()
+
 def get_model_resnet(num_classes):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # print((model.backbone.body))
-    # replace the classifier with a new one, that has
-    # num_classes which is user-defined
-    num_classes = 2  # 1 class (table) + background
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # print(model.roi_heads.box_predictor)
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
     # print(model)
@@ -36,19 +40,29 @@ model = get_model_resnet(num_classes)
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # loading saved model weights
-model.load_state_dict(torch.load('saved_model/model46-1.pth'))
+model.load_state_dict(torch.load(options.input_checkpoint))
 # move model to the right device
 model.to(device)
-
+# evaluation mode ON
 model.eval()
 
-test_dir = "data/test/"
+# check if test directory exist
+if not os.path.exists(options.test_path):
+    print(options.test_path + ' does not exists')
+    exit(0)
+
+test_dir = options.test_path
 test_images = os.listdir(test_dir)
 
-with open('predictions.csv', 'wt') as csvfile:
+if not os.path.exists('evaluation'):
+    os.makedirs('evaluation')
+
+with open('evaluation/predictions.csv', 'wt') as csvfile:
     filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     filewriter.writerow(['image_id', 'xmin', 'ymin', 'xmax', 'ymax', 'label', 'prob'])
     
+    print('[info]', len(test_images),'images loaded for test.\n')
+    count = 0
     for img_path in test_images:
         img = utils.read_image(os.path.join(test_dir, img_path))
         # Rescaling Images
@@ -116,7 +130,6 @@ with open('predictions.csv', 'wt') as csvfile:
                         predicted_scores[i]
                     ])
         else:
-            print('1')
             filewriter.writerow(
                         [
                             img_path,
@@ -127,5 +140,10 @@ with open('predictions.csv', 'wt') as csvfile:
                             'no detections',
                             0
                         ])
-        cv2.imwrite('output/'+img_path, image_to_write)
+        count += 1
+        print("["+str(count)+"/"+str(len(test_images))+"] | image_id:", img_path)
+        # if not os.path.exists('data/output'):
+        #     os.makedirs('data/output')
+        # cv2.imwrite('data/output/'+img_path, image_to_write)
         # print(img_path)
+print('[info] testing is completed.')

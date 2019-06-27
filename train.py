@@ -1,6 +1,7 @@
 import os
 import math
 import sys
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -23,15 +24,27 @@ from engine import train_one_epoch, evaluate
 import utils
 
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-p", "--path", dest="train_path", help="Path to training data images.", default="data/train")
+parser.add_argument("-l", "--label", dest="train_label", help="Path to training data labels.", default="data/train.csv")
+parser.add_argument("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
+parser.add_argument("-e","--num_epochs", type=int, dest="num_epochs", help="Number of epochs.", default=10)
+parser.add_argument("--cf","--check_freq", type=int, dest="check_freq", help="Checkpoint frequency.")
+parser.add_argument("--output_weight_path", dest="output_weight_path", help="Output path for weights.", default='saved_model')
+parser.add_argument("--input_weight_path", dest="input_weight_path", help="Input path for weights.")
+
+options = parser.parse_args()
+
 class TableDataset(torch.utils.data.Dataset):
     def __init__(self, root, transforms=None):
         self.root = root
         self.transforms = transforms
         # load all image files
-        self.imgs = list(sorted(os.listdir(os.path.join(root, "train"))))
+        self.imgs = list(sorted(os.listdir(os.path.join(root, options.train_path))))
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.root, "train", self.imgs[idx])
+        img_path = os.path.join(self.root, options.train_path, self.imgs[idx])
         # image = Image.open(img_path).convert("RGB")
         image = utils.read_image(img_path)
 
@@ -50,8 +63,12 @@ class TableDataset(torch.utils.data.Dataset):
                                 std=[0.229, 0.224, 0.225])
         image = normalize(torch.from_numpy(image))
         image = image.numpy()
-    
-        train_labels = pd.read_csv('data/train.csv')
+        
+        if not os.path.isfile(os.path.join(self.root, options.train_label)):
+            print('[error]', options.train_label+' file not found')
+            exit(0)
+
+        train_labels = pd.read_csv(os.path.join(self.root, options.train_label))
 
         old_boxes = []
         num_objs = 0
@@ -110,8 +127,6 @@ class TableDataset(torch.utils.data.Dataset):
 def get_model_resnet(num_classes):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # num_classes which is user-defined
-    num_classes = 2  # 1 class (table) + background
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
@@ -123,14 +138,15 @@ def get_transform(train):
 
     # converts the image, a PIL image, into a PyTorch Tensor
     transforms.append(T.ToTensor())
-    # if train:
-    #     # during training, randomly flip the training images
-    #     # and ground-truth for data augmentation
-    #     transforms.append(T.RandomHorizontalFlip(0.5))
+    if train:
+        if options.horizontal_flips:
+            # during training, randomly flip the training images
+            # and ground-truth for data augmentation
+            transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
 
-dataset = TableDataset('data', get_transform(train=True))
-dataset_test = TableDataset('data', get_transform(train=False))
+dataset = TableDataset(os.getcwd(), get_transform(train=True))
+dataset_test = TableDataset(os.getcwd(), get_transform(train=False))
 
 # split the dataset in train and test set
 torch.manual_seed(1)
@@ -172,58 +188,21 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                gamma=0.1)
 
 # create the summary writer
-writer = SummaryWriter()
+# writer = SummaryWriter()
 # let's train it for 10 epochs
-num_epochs = 100
+num_epochs = options.num_epochs
 # step = 0
+
+print('[info] total epochs:', num_epochs)
+if options.check_freq:
+    print('[info] model weights will saved in /'+options.output_weight_path+' folder after every', options.check_freq, 'epochs\n')
+else:
+    print('[info] model weights will saved in /'+options.output_weight_path+' folder\n')
 
 for epoch in range(num_epochs):
     # train for one epoch, printing every 100 iterations
     train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
-    # model.train()
-
-    # metric_logger = utils.MetricLogger(delimiter="  ")
-    # metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    # header = 'Epoch: [{}]'.format(epoch)
-    # print_freq = 30
-    
-    # lr_scheduler1 = None
-
-    # if epoch == 0:
-    #     warmup_factor = 1. / 1000
-    #     warmup_iters = min(1000, len(data_loader) - 1)
-
-    #     lr_scheduler1 = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
-
-    # for images, targets in metric_logger.log_every(data_loader, print_freq, header):
-        
-    #     images = list(image.to(device) for image in images)
-    #     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
-    #     loss_dict = model(images, targets)
-        
-    #     losses = sum(loss for loss in loss_dict.values())
-
-    #     # reduce losses over all GPUs for logging purposes
-    #     loss_dict_reduced = utils.reduce_dict(loss_dict)
-    #     losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        
-    #     loss_value = losses_reduced.item()
-        
-    #     if not math.isfinite(loss_value):
-    #         print("Loss is {}, stopping training".format(loss_value))
-    #         print(loss_dict_reduced)
-    #         sys.exit(1)
-
-    #     optimizer.zero_grad()
-    #     losses.backward()
-    #     optimizer.step()
-
-    #     if lr_scheduler1 is not None:
-    #         lr_scheduler1.step()
-
-    #     metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
-    #     metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+    ## you can paste train_one_epoch function code here ##
     #     step += 1
 
     #     # write scalars to tensorboard after 100 iterations
@@ -242,9 +221,19 @@ for epoch in range(num_epochs):
     # evaluate on the test dataset
     # evaluate(model, data_loader_test, device=device)
 
-    if ((epoch+1)%10 == 0):
-        torch.save(model.state_dict(), 'saved_model/model{}-2.pth'.format(epoch+1))
-    
+    # check if output_weight_path directory exists
+    if not os.path.exists(options.output_weight_path):
+        os.makedirs(options.output_weight_path)
+
+    # if model checkpoints frequency is provided
+    if options.check_freq:
+        # save model weights at given frequency
+        if ((epoch+1)%options.check_freq == 0):
+            torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
+    # save the last weights 
+    if ((epoch+1) == num_epochs):
+        torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
+
     torch.cuda.empty_cache()
 
-writer.close()
+# writer.close()
