@@ -69,7 +69,7 @@ model = get_model_resnet(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-model.load_state_dict(torch.load('saved_model/model37.pth'))
+model.load_state_dict(torch.load('saved_model/model100-2.pth'))
 model.to(device)
 
 model.eval()
@@ -123,5 +123,5 @@ for img_path in test_images:
         for box in boxes:
             cv2.rectangle(image_to_write, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 3)
     
-    cv2.imwrite('output/'+img_path, image_to_write)
+    cv2.imwrite('data/output/'+img_path, image_to_write)
     print(img_path)
