@@ -3,6 +3,7 @@ from skimage import transform as sktsf
 import cv2
 from PIL import Image
 import numpy as np
+import csv
 import transforms as T
 import torch
 import torch.utils.data
@@ -20,7 +21,7 @@ def get_model_resnet(num_classes):
     # print((model.backbone.body))
     # replace the classifier with a new one, that has
     # num_classes which is user-defined
-    num_classes = 2  # 1 class (person) + background
+    num_classes = 2  # 1 class (table) + background
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # print(model.roi_heads.box_predictor)
@@ -29,47 +30,14 @@ def get_model_resnet(num_classes):
     # print(model)
     return model
 
-def get_model_mobilenet(num_classes):
-    # load a pre-trained model for classification and return
-    # only the features
-    backbone = torchvision.models.mobilenet_v2(pretrained=True).features
-    # FasterRCNN needs to know the number of
-    # output channels in a backbone. For mobilenet_v2, it's 1280
-    # so we need to add it here
-    
-    backbone.out_channels = 1280
-    # let's make the RPN generate 5 x 3 anchors per spatial
-    # location, with 5 different sizes and 3 different aspect
-    # ratios. We have a Tuple[Tuple[int]] because each feature
-    # map could potentially have different sizes and
-    # aspect ratios 
-    anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
-                                       aspect_ratios=((0.5, 1.0, 2.0),))
-
-    # let's define what are the feature maps that we will
-    # use to perform the region of interest cropping, as well as
-    # the size of the crop after rescaling.
-    # if your backbone returns a Tensor, featmap_names is expected to
-    # be [0]. More generally, the backbone should return an
-    # OrderedDict[Tensor], and in featmap_names you can choose which
-    # feature maps to use.
-    roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
-                                                    output_size=7,
-                                                    sampling_ratio=2)
-
-    # put the pieces together inside a FasterRCNN model
-    model = FasterRCNN(backbone,
-                       num_classes=2,
-                       rpn_anchor_generator=anchor_generator,
-                       box_roi_pool=roi_pooler)
-    return model
-
 num_classes = 2
 model = get_model_resnet(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-model.load_state_dict(torch.load('saved_model/model100-2.pth'))
+# loading saved model weights
+model.load_state_dict(torch.load('saved_model/model46-1.pth'))
+# move model to the right device
 model.to(device)
 
 model.eval()
@@ -77,51 +45,87 @@ model.eval()
 test_dir = "data/test/"
 test_images = os.listdir(test_dir)
 
-for img_path in test_images:
-    img = utils.read_image(os.path.join(test_dir, img_path))
-    # Rescaling Images
-    C, H, W = img.shape
-    min_size = 600
-    max_size = 1024
-    scale1 = min_size / min(H, W)
-    scale2 = max_size / max(H, W)
-    scale = min(scale1, scale2)
-    img = img / 255.
-    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
-
-    # Normalizing image
-    normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225])
-    img = normalize(torch.from_numpy(img))
-
-    image_to_write = cv2.imread(os.path.join(test_dir, img_path))
-
-    with torch.no_grad():
-        prediction = model([img.to(device)])
-
-    predicted_boxes = []
-    for i in range(prediction[0]['boxes'].size()[0]):
-        if (prediction[0]['scores'][i] > 0.6):
-            box = prediction[0]['boxes'][i]
-            xmin = int(box[0].item())
-            ymin = int(box[1].item())
-            xmax = int(box[2].item())
-            ymax = int(box[3].item())
-            predicted_boxes.append([xmin, ymin, xmax, ymax])
+with open('predictions.csv', 'wt') as csvfile:
+    filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    filewriter.writerow(['image_id', 'xmin', 'ymin', 'xmax', 'ymax', 'label', 'prob'])
     
-    if (predicted_boxes):    
-        _, o_H, o_W = img.shape
-        bbox = np.stack(predicted_boxes).astype(np.float32)
-        resized_boxes = utils.resize_bbox(bbox, (o_H, o_W), (H, W))
+    for img_path in test_images:
+        img = utils.read_image(os.path.join(test_dir, img_path))
+        # Rescaling Images
+        C, H, W = img.shape
+        min_size = 600
+        max_size = 1024
+        scale1 = min_size / min(H, W)
+        scale2 = max_size / max(H, W)
+        scale = min(scale1, scale2)
+        img = img / 255.
+        img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
 
-        boxes = []
-        for i in resized_boxes:
-            box = []
-            [box.append(int(b)) for b in i]
-            boxes.append(box)
+        # Normalizing image
+        normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+        img = normalize(torch.from_numpy(img))
 
-        for box in boxes:
-            cv2.rectangle(image_to_write, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 3)
-    
-    cv2.imwrite('data/output/'+img_path, image_to_write)
-    print(img_path)
+        image_to_write = cv2.imread(os.path.join(test_dir, img_path))
+
+        with torch.no_grad():
+            prediction = model([img.to(device)])
+
+        predicted_boxes = []
+        predicted_scores = []
+        
+        for i in range(prediction[0]['boxes'].size()[0]):
+            if (prediction[0]['scores'][i] > 0.6):
+                box = prediction[0]['boxes'][i]
+                xmin = int(box[0].item())
+                ymin = int(box[1].item())
+                xmax = int(box[2].item())
+                ymax = int(box[3].item())
+                predicted_boxes.append([xmin, ymin, xmax, ymax])
+                predicted_scores.append(prediction[0]['scores'][i].item())
+        
+        # if any bbox is predicted
+        if (predicted_boxes):    
+            # Resize bboxes according to image resize
+            _, o_H, o_W = img.shape
+            bbox = np.stack(predicted_boxes).astype(np.float32)
+            resized_boxes = utils.resize_bbox(bbox, (o_H, o_W), (H, W))
+
+            # resized boxes are stacked (R, 4) 
+            # where R is the number of bboxes in the image 
+            # converted it back to simple 2d-array [[xmin1, ymin1, xmax1, ymax1], ...]
+            boxes = []
+            for i in resized_boxes:
+                box = []
+                [box.append(int(b)) for b in i]
+                boxes.append(box)
+
+            # printing bboxes on image and storing them in csv file
+            for i in range(len(boxes)):
+                cv2.rectangle(image_to_write, (boxes[i][0], 
+                    boxes[i][1]), (boxes[i][2], boxes[i][3]), (0, 0, 255), 3)
+                
+                filewriter.writerow(
+                    [
+                        img_path,
+                        boxes[i][0],
+                        boxes[i][1],
+                        boxes[i][2],
+                        boxes[i][3],
+                        'table',
+                        predicted_scores[i]
+                    ])
+        else:
+            print('1')
+            filewriter.writerow(
+                        [
+                            img_path,
+                            0,
+                            0,
+                            0,
+                            0,
+                            'no detections',
+                            0
+                        ])
+        cv2.imwrite('output/'+img_path, image_to_write)
+        # print(img_path)
