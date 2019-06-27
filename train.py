@@ -6,7 +6,6 @@ import argparse
 import numpy as np
 import pandas as pd
 import cv2
-import transforms as T
 import PIL
 from PIL import Image
 from skimage import transform as sktsf
@@ -20,6 +19,7 @@ from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+import transforms as T
 from engine import train_one_epoch, evaluate
 import utils
 
