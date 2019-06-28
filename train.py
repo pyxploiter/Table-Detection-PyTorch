@@ -186,7 +186,7 @@ optimizer = torch.optim.SGD(params, lr=0.005,
 # and a learning rate scheduler which decreases the learning rate by
 # 10x every 3 epochs
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                               step_size=3,
+                                               step_size=10,
                                                gamma=0.1)
 
 # create the summary writer
@@ -203,6 +203,7 @@ else:
     print('[info] model weights will saved in /'+options.output_weight_path+' folder\n')
 
 for epoch in range(num_epochs):
+    step += 1
     # train for one epoch, printing every 100 iterations
     # train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
     ## you can paste train_one_epoch function code here ##
@@ -258,8 +259,8 @@ for epoch in range(num_epochs):
             writer.add_scalar('loss: ', loss_value, step)
 
     # update the learning rate
-    # if lr_scheduler is not None:
-    lr_scheduler.step()
+    if lr_scheduler.get_lr()[0] > 0.000001:
+        lr_scheduler.step()
 
     # print('evaluating...')
     # evaluate(model, data_loader_test, device=device)
