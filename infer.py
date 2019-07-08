@@ -19,7 +19,7 @@ import utils
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-p", dest="test_path", help="Path to test data images.", default="data/test")
+parser.add_argument("-p", dest="test_path", help="Path to test data images.", default="../data/70-20-10/b/test")
 parser.add_argument("-c", dest="input_checkpoint", help="Input checkpoint file path.", required=True)
 
 options = parser.parse_args()
@@ -39,6 +39,11 @@ model = get_model_resnet(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+if not os.path.exists(options.input_checkpoint):
+    print(options.input_checkpoint + ' file does not exists')
+    exit(0)
+else:
+    print("[info] loading model from "+ options.input_checkpoint)
 # loading saved model weights
 model.load_state_dict(torch.load(options.input_checkpoint))
 # move model to the right device
@@ -50,6 +55,7 @@ model.eval()
 if not os.path.exists(options.test_path):
     print(options.test_path + ' does not exists')
     exit(0)
+
 
 test_dir = options.test_path
 test_images = os.listdir(test_dir)
@@ -79,8 +85,8 @@ with open('evaluation/predictions.csv', 'wt') as csvfile:
         normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
         img = normalize(torch.from_numpy(img))
-
-        image_to_write = cv2.imread(os.path.join(test_dir, img_path))
+	# read original image for printing bounding boxes on it
+        image_to_write = cv2.imread(os.path.join('../data/images', img_path))
 
         with torch.no_grad():
             prediction = model([img.to(device)])
@@ -142,8 +148,8 @@ with open('evaluation/predictions.csv', 'wt') as csvfile:
                         ])
         count += 1
         print("["+str(count)+"/"+str(len(test_images))+"] | image_id:", img_path)
-        # if not os.path.exists('data/output'):
-        #     os.makedirs('data/output')
-        # cv2.imwrite('data/output/'+img_path, image_to_write)
-        # print(img_path)
+        if not os.path.exists('output'):
+            os.makedirs('output')
+        cv2.imwrite('output/'+img_path, image_to_write)
+
 print('[info] testing is completed.')

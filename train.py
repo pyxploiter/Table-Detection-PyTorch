@@ -146,6 +146,17 @@ def get_transform(train):
             transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
 
+def init_msg():
+    print('---------------------------------------------------------')
+    print('[info] training images path: '+options.train_path)
+    print('[info] training labels path: '+options.train_label)
+    print('[info] total epochs:', num_epochs)
+    if options.check_freq:
+        print('[info] model weights will saved in /'+options.output_weight_path+' folder after every', options.check_freq, 'epochs')
+    else:
+        print('[info] model weights will saved in /'+options.output_weight_path+' folder')
+    print('---------------------------------------------------------')
+
 dataset = TableDataset(os.getcwd(), get_transform(train=True))
 dataset_test = TableDataset(os.getcwd(), get_transform(train=False))
 
@@ -172,9 +183,27 @@ num_classes = 2
 
 # get the model using our helper function
 model = get_model_resnet(num_classes)
-
+path_to_model = "/home/veeve/Documents/Tables_Official/Table-Detection-PyTorch/saved_model/model_ep20.pth"
+if os.path.exists(path_to_model):
+    model.load_state_dict(torch.load(path_to_model))
 # move model to the right device
 model.to(device)
+
+# c = 0
+# # print(model.named_children)
+# for block in model.backbone.body.children():
+#     c+=1
+#     if (c < 7):
+#         for name,param in block.named_parameters():
+#                 param.requires_grad = False
+#                 # print("\t", name)
+
+# params_to_update = []
+# for name, param in model.named_parameters():
+#     if param.requires_grad == True:
+#         params_to_update.append(param)
+#         print("\t",name)
+# exit(0)
 
 # construct an optimizer
 params = [p for p in model.parameters() if p.requires_grad]
@@ -183,10 +212,9 @@ optimizer = torch.optim.SGD(params, lr=0.005,
 
 # optimizer = torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
 
-# and a learning rate scheduler which decreases the learning rate by
-# 10x every 3 epochs
+# and a learning rate scheduler which decreases the learning rate by 10x
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                               step_size=10,
+                                               step_size=100,
                                                gamma=0.1)
 
 # create the summary writer
@@ -194,21 +222,15 @@ writer = SummaryWriter()
 # let's train it for 10 epochs
 num_epochs = options.num_epochs
 step = 0
-# exit(0)
 
-print('[info] total epochs:', num_epochs)
-if options.check_freq:
-    print('[info] model weights will saved in /'+options.output_weight_path+' folder after every', options.check_freq, 'epochs\n')
-else:
-    print('[info] model weights will saved in /'+options.output_weight_path+' folder\n')
+init_msg()
 
 for epoch in range(num_epochs):
-    step += 1
     # train for one epoch, printing every 100 iterations
     # train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
     ## you can paste train_one_epoch function code here ##
     model.train()
-    print_freq = 100
+    print_freq = 200
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
@@ -221,7 +243,7 @@ for epoch in range(num_epochs):
         wp_lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
-        
+        step += 1
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -251,7 +273,7 @@ for epoch in range(num_epochs):
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         
     #     # write scalars to tensorboard after 100 iterations
-        if (step % 500 == 0):
+        if (step % print_freq == 0):
             for key, val in loss_dict.items():
                 # adding 4 losses one by one
                 writer.add_scalar(key, val.item(), step)
@@ -273,7 +295,7 @@ for epoch in range(num_epochs):
     if options.check_freq:
         # save model weights at given frequency
         if ((epoch+1)%options.check_freq == 0):
-            torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
+            torch.save(model.state_dict(), options.output_weight_path+'/model_ep{}.pth'.format(epoch+1))
     # save the last weights 
     if ((epoch+1) == num_epochs):
         torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
