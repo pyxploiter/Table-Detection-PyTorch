@@ -11,6 +11,7 @@ from PIL import Image
 from skimage import transform as sktsf
 
 import torch
+import torch.nn as nn
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
@@ -20,8 +21,6 @@ from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 import transforms as T
-# from engine import train_one_epoch
-# from engine import evaluate
 import utils
 
 
@@ -125,7 +124,7 @@ class TableDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
-def get_model_resnet(num_classes):
+def get_model_resnet50(num_classes):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     # get number of input features for the classifier
@@ -133,6 +132,47 @@ def get_model_resnet(num_classes):
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
     return model
+
+def get_model_resnet101(num_classes):
+	backbone = torchvision.models.resnet101()
+	backbone = nn.Sequential(*list(backbone.children())[:-2])
+
+	backbone.out_channels = 2048
+
+	anchor_generator = AnchorGenerator(sizes=((64, 128, 256, 512),),
+	                                   aspect_ratios=((0.5, 1.0, 2.0),))
+
+	roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
+	                                                output_size=7,
+	                                                sampling_ratio=2)
+	
+	# put the pieces together inside a FasterRCNN model
+	model = FasterRCNN(backbone,
+	                   num_classes=2,
+	                   rpn_anchor_generator=anchor_generator,
+	                   box_roi_pool=roi_pooler)
+
+	return model
+
+def get_model_mobilenet(num_classes):
+	# # only the features
+	backbone = torchvision.models.mobilenet_v2(pretrained=True).features
+	# output channels in a backbone. For mobilenet_v2, it's 1280
+	backbone.out_channels = 1280
+
+	anchor_generator = AnchorGenerator(sizes=((64, 128, 256, 512),),
+	                                   aspect_ratios=((0.5, 1.0, 2.0),))
+
+	roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
+	                                                output_size=7,
+	                                                sampling_ratio=2)
+
+	# put the pieces together inside a FasterRCNN model
+	model = FasterRCNN(backbone,
+	                   num_classes=2,
+	                   rpn_anchor_generator=anchor_generator,
+	                   box_roi_pool=roi_pooler)
+	return model
 
 def get_transform(train):
     transforms = []
@@ -182,13 +222,18 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 num_classes = 2
 
 # get the model using our helper function
-model = get_model_resnet(num_classes)
+# model = get_model_resnet50(num_classes)
+# model = get_model_mobilenet(num_classes)
+model = get_model_resnet101(num_classes)
+
+# if checkpoint saved, continue training from that checkpoint
 path_to_model = "/home/veeve/Documents/Tables_Official/Table-Detection-PyTorch/saved_model/model_ep20.pth"
 if os.path.exists(path_to_model):
     model.load_state_dict(torch.load(path_to_model))
 # move model to the right device
 model.to(device)
 
+######## This block contains code for freezing layers #########
 # c = 0
 # # print(model.named_children)
 # for block in model.backbone.body.children():
@@ -197,17 +242,11 @@ model.to(device)
 #         for name,param in block.named_parameters():
 #                 param.requires_grad = False
 #                 # print("\t", name)
-
-# params_to_update = []
-# for name, param in model.named_parameters():
-#     if param.requires_grad == True:
-#         params_to_update.append(param)
-#         print("\t",name)
-# exit(0)
+###############################################################
 
 # construct an optimizer
 params = [p for p in model.parameters() if p.requires_grad]
-optimizer = torch.optim.SGD(params, lr=0.005,
+optimizer = torch.optim.SGD(params, lr=0.0003,
                             momentum=0.9, weight_decay=0.0005)
 
 # optimizer = torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
@@ -226,10 +265,9 @@ step = 0
 init_msg()
 
 for epoch in range(num_epochs):
-    # train for one epoch, printing every 100 iterations
-    # train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=100)
-    ## you can paste train_one_epoch function code here ##
+  	# enter into training mode
     model.train()
+    # print progress after 200 iterations each time
     print_freq = 200
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -280,7 +318,7 @@ for epoch in range(num_epochs):
             # adding total loss
             writer.add_scalar('loss: ', loss_value, step)
 
-    # update the learning rate
+    # update the learning rate after the step-size defined in LR scheduler
     if lr_scheduler.get_lr()[0] > 0.000001:
         lr_scheduler.step()
 
