@@ -19,6 +19,8 @@ from torchvision import transforms as tvtsf
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.utils import load_state_dict_from_url
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
 import transforms as T
 import utils
@@ -124,56 +126,6 @@ class TableDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
-def get_model_resnet50(num_classes):
-    # load a model pre-trained pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # get number of input features for the classifier
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-    return model
-
-def get_model_resnet101(num_classes):
-	backbone = torchvision.models.resnet101()
-	backbone = nn.Sequential(*list(backbone.children())[:-2])
-
-	backbone.out_channels = 2048
-
-	anchor_generator = AnchorGenerator(sizes=((64, 128, 256, 512),),
-	                                   aspect_ratios=((0.5, 1.0, 2.0),))
-
-	roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
-	                                                output_size=7,
-	                                                sampling_ratio=2)
-	
-	# put the pieces together inside a FasterRCNN model
-	model = FasterRCNN(backbone,
-	                   num_classes=2,
-	                   rpn_anchor_generator=anchor_generator,
-	                   box_roi_pool=roi_pooler)
-
-	return model
-
-def get_model_mobilenet(num_classes):
-	# # only the features
-	backbone = torchvision.models.mobilenet_v2(pretrained=True).features
-	# output channels in a backbone. For mobilenet_v2, it's 1280
-	backbone.out_channels = 1280
-
-	anchor_generator = AnchorGenerator(sizes=((64, 128, 256, 512),),
-	                                   aspect_ratios=((0.5, 1.0, 2.0),))
-
-	roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
-	                                                output_size=7,
-	                                                sampling_ratio=2)
-
-	# put the pieces together inside a FasterRCNN model
-	model = FasterRCNN(backbone,
-	                   num_classes=2,
-	                   rpn_anchor_generator=anchor_generator,
-	                   box_roi_pool=roi_pooler)
-	return model
-
 def get_transform(train):
     transforms = []
 
@@ -185,6 +137,56 @@ def get_transform(train):
             # and ground-truth for data augmentation
             transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
+
+def get_model_resnet50(num_classes):
+    # load a model pre-trained pre-trained on COCO
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    # get number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    # replace the pre-trained head with a new one
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
+    return model
+
+# class BackboneWithFPN(nn.Sequential):
+#     def __init__(self):
+#         super(BackboneWithFPN, self).__init__()
+#         resnet101 = torchvision.models.resnet101(pretrained=True)
+#         self.body = nn.Sequential(*list(resnet101.children())[:-2])
+#         resnet50_frcnn = get_model_resnet50(2)
+#         self.fpn = list(resnet50_frcnn.backbone.children())[1]
+
+#     def forward(self,x):
+#         x = self.body(x)
+#         x = self.fpn(x)
+#         return x
+
+# def get_model_resnet101(num_classes):
+#     backbone = BackboneWithFPN()
+#     backbone.out_channels = 256
+    
+#     # put the pieces together inside a FasterRCNN model
+#     model = FasterRCNN(backbone,
+#                        num_classes=2)
+#                        # rpn_anchor_generator=anchor_generator,
+#                        # box_roi_pool=roi_pooler)
+
+#     return model
+
+def get_model_resnet101(num_classes, pretrained=True, progress=True,
+                            pretrained_backbone=False, **kwargs):
+    backbone = resnet_fpn_backbone('resnet101', pretrained_backbone)
+    model = FasterRCNN(backbone, num_classes, **kwargs)
+    # if pretrained:
+    #     state_dict = load_state_dict_from_url(model_urls['fasterrcnn_resnet50_fpn_coco'],
+    #                                           progress=progress)
+    #     model.load_state_dict(state_dict)
+
+     # get number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    # replace the pre-trained head with a new one
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
+
+    return model
 
 def init_msg():
     print('---------------------------------------------------------')
@@ -223,37 +225,51 @@ num_classes = 2
 
 # get the model using our helper function
 # model = get_model_resnet50(num_classes)
-# model = get_model_mobilenet(num_classes)
-model = get_model_resnet101(num_classes)
+model = get_model_resnet101(num_classes,pretrained_backbone=True)
+
+# f = open('frcnn-101-fpn-2.json','w')
+# f.write(str(model))
+# f.close()
 
 # if checkpoint saved, continue training from that checkpoint
-path_to_model = "/home/veeve/Documents/Tables_Official/Table-Detection-PyTorch/saved_model/model_ep20.pth"
+path_to_model = ""
 if os.path.exists(path_to_model):
     model.load_state_dict(torch.load(path_to_model))
 # move model to the right device
 model.to(device)
 
 ######## This block contains code for freezing layers #########
-# c = 0
-# # print(model.named_children)
-# for block in model.backbone.body.children():
-#     c+=1
-#     if (c < 7):
-#         for name,param in block.named_parameters():
-#                 param.requires_grad = False
-#                 # print("\t", name)
+c = 0
+d = 0
+# print(model.named_children)
+for n, block in model.backbone.named_children():
+    c+=1
+    if (c < 6):
+	    for name,param in block.named_parameters():
+	            if( d < 15 ):
+		            param.requires_grad = False
+		            # print(n,"\t", name, param.requires_grad)
+	            d+=1
+	    # print("---------")
+
+# print names of trainable parameters
+# for name, param in model.named_parameters():
+# 	if (param.requires_grad):
+# 		print(name)
+# exit(0)
 ###############################################################
 
 # construct an optimizer
 params = [p for p in model.parameters() if p.requires_grad]
-optimizer = torch.optim.SGD(params, lr=0.0003,
+
+optimizer = torch.optim.SGD(params, lr=0.003,
                             momentum=0.9, weight_decay=0.0005)
 
 # optimizer = torch.optim.Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
 
 # and a learning rate scheduler which decreases the learning rate by 10x
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                               step_size=100,
+                                               step_size=40,
                                                gamma=0.1)
 
 # create the summary writer
@@ -336,7 +352,7 @@ for epoch in range(num_epochs):
             torch.save(model.state_dict(), options.output_weight_path+'/model_ep{}.pth'.format(epoch+1))
     # save the last weights 
     if ((epoch+1) == num_epochs):
-        torch.save(model.state_dict(), options.output_weight_path+'/model_ep-{}.pth'.format(epoch+1))
+        torch.save(model.state_dict(), options.output_weight_path+'/model_ep{}.pth'.format(epoch+1))
 
     torch.cuda.empty_cache()
 print('[info] training is completed.')

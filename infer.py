@@ -8,12 +8,15 @@ import numpy as np
 import csv
 import transforms as T
 import torch
+import torch.nn as nn
 import torch.utils.data
 import torchvision
 from torchvision import transforms as tvtsf
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.utils import load_state_dict_from_url
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
 import utils
 
@@ -24,18 +27,58 @@ parser.add_argument("-c", dest="input_checkpoint", help="Input checkpoint file p
 
 options = parser.parse_args()
 
-def get_model_resnet(num_classes):
+def get_model_resnet50(num_classes):
     # load a model pre-trained pre-trained on COCO
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-    # print(model)
+    return model
+
+# class BackboneWithFPN(nn.Sequential):
+#     def __init__(self):
+#         super(BackboneWithFPN, self).__init__()
+#         resnet101 = torchvision.models.resnet101(pretrained=True)
+#         self.body = nn.Sequential(*list(resnet101.children())[:-2])
+#         resnet50_frcnn = get_model_resnet50(2)
+#         self.fpn = list(resnet50_frcnn.backbone.children())[1]
+
+#     def forward(self,x):
+#         x = self.body(x)
+#         x = self.fpn(x)
+#         return x
+
+# def get_model_resnet101(num_classes):
+#     backbone = BackboneWithFPN()
+#     backbone.out_channels = 256
+    
+#     # put the pieces together inside a FasterRCNN model
+#     model = FasterRCNN(backbone,
+#                        num_classes=2)
+#                        # rpn_anchor_generator=anchor_generator,
+#                        # box_roi_pool=roi_pooler)
+
+#     return model
+
+def get_model_resnet101(num_classes, pretrained=True, progress=True,
+                            pretrained_backbone=False, **kwargs):
+    backbone = resnet_fpn_backbone('resnet101', pretrained_backbone)
+    model = FasterRCNN(backbone, num_classes, **kwargs)
+    # if pretrained:
+    #     state_dict = load_state_dict_from_url(model_urls['fasterrcnn_resnet50_fpn_coco'],
+    #                                           progress=progress)
+    #     model.load_state_dict(state_dict)
+
+     # get number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    # replace the pre-trained head with a new one
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
+
     return model
 
 num_classes = 2
-model = get_model_resnet(num_classes)
+model = get_model_resnet101(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -63,7 +106,7 @@ test_images = os.listdir(test_dir)
 if not os.path.exists('evaluation'):
     os.makedirs('evaluation')
 
-with open('evaluation/predictions.csv', 'wt') as csvfile:
+with open('evaluation/predictions'+str(options.input_checkpoint[20:-4])+'.csv', 'wt') as csvfile:
     filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     filewriter.writerow(['image_id', 'xmin', 'ymin', 'xmax', 'ymax', 'label', 'prob'])
     
@@ -85,6 +128,7 @@ with open('evaluation/predictions.csv', 'wt') as csvfile:
         normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
         img = normalize(torch.from_numpy(img))
+        
 	# read original image for printing bounding boxes on it
         image_to_write = cv2.imread(os.path.join('../data/images', img_path))
 
