@@ -232,9 +232,10 @@ model = get_model_resnet101(num_classes,pretrained_backbone=True)
 # f.close()
 
 # if checkpoint saved, continue training from that checkpoint
-path_to_model = ""
+path_to_model = "saved_model/model_ep100.pth"
 if os.path.exists(path_to_model):
     model.load_state_dict(torch.load(path_to_model))
+    print("model loaded from "+path_to_model)
 # move model to the right device
 model.to(device)
 
