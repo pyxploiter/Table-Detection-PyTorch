@@ -12,11 +12,7 @@ import torch.nn as nn
 import torch.utils.data
 import torchvision
 from torchvision import transforms as tvtsf
-from torchvision.models.detection import FasterRCNN
-from torchvision.models.detection.rpn import AnchorGenerator
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.utils import load_state_dict_from_url
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+import models
 
 import utils
 
@@ -27,58 +23,8 @@ parser.add_argument("-c", dest="input_checkpoint", help="Input checkpoint file p
 
 options = parser.parse_args()
 
-def get_model_resnet50(num_classes):
-    # load a model pre-trained pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-    # get number of input features for the classifier
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-    return model
-
-# class BackboneWithFPN(nn.Sequential):
-#     def __init__(self):
-#         super(BackboneWithFPN, self).__init__()
-#         resnet101 = torchvision.models.resnet101(pretrained=True)
-#         self.body = nn.Sequential(*list(resnet101.children())[:-2])
-#         resnet50_frcnn = get_model_resnet50(2)
-#         self.fpn = list(resnet50_frcnn.backbone.children())[1]
-
-#     def forward(self,x):
-#         x = self.body(x)
-#         x = self.fpn(x)
-#         return x
-
-# def get_model_resnet101(num_classes):
-#     backbone = BackboneWithFPN()
-#     backbone.out_channels = 256
-    
-#     # put the pieces together inside a FasterRCNN model
-#     model = FasterRCNN(backbone,
-#                        num_classes=2)
-#                        # rpn_anchor_generator=anchor_generator,
-#                        # box_roi_pool=roi_pooler)
-
-#     return model
-
-def get_model_resnet101(num_classes, pretrained=True, progress=True,
-                            pretrained_backbone=False, **kwargs):
-    backbone = resnet_fpn_backbone('resnet101', pretrained_backbone)
-    model = FasterRCNN(backbone, num_classes, **kwargs)
-    # if pretrained:
-    #     state_dict = load_state_dict_from_url(model_urls['fasterrcnn_resnet50_fpn_coco'],
-    #                                           progress=progress)
-    #     model.load_state_dict(state_dict)
-
-     # get number of input features for the classifier
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-
-    return model
-
 num_classes = 2
-model = get_model_resnet101(num_classes)
+model = models.frcnn_resnet101(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -87,6 +33,7 @@ if not os.path.exists(options.input_checkpoint):
     exit(0)
 else:
     print("[info] loading model from "+ options.input_checkpoint)
+
 # loading saved model weights
 model.load_state_dict(torch.load(options.input_checkpoint))
 # move model to the right device
@@ -98,7 +45,6 @@ model.eval()
 if not os.path.exists(options.test_path):
     print(options.test_path + ' does not exists')
     exit(0)
-
 
 test_dir = options.test_path
 test_images = os.listdir(test_dir)
