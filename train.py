@@ -120,7 +120,7 @@ dataset = TableDataset(os.getcwd(), train_images_path, train_labels_path, get_tr
 torch.manual_seed(1)
 indices = torch.randperm(len(dataset)).tolist()
 
-dataset = torch.utils.data.Subset(dataset, indices[:20])
+dataset = torch.utils.data.Subset(dataset, indices)
 
 # define training and validation data loaders
 data_loader = torch.utils.data.DataLoader(
