@@ -15,68 +15,73 @@ from torchvision import transforms as tvtsf
 import models
 
 import utils
+from parser import params
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-p", dest="test_path", help="Path to test data images.", default="../data/70-20-10/b/test")
-parser.add_argument("-c", dest="input_checkpoint", help="Input checkpoint file path.", required=True)
+parser.add_argument("-p", dest="test_images_path", help="Path to test data images.")
+parser.add_argument("-c", dest="checkpoint_path", help="Input checkpoint file path.")
 
 options = parser.parse_args()
 
+# read command line arguments if given, otherwise read it from config file
+test_images_path = options.test_images_path if options.test_images_path else params['test_images_path'] 
+checkpoint_path = options.checkpoint_path if options.checkpoint_path else params['checkpoint_path']
+
 num_classes = 2
-model = models.frcnn_resnet101(num_classes)
+model = models.frcnn_resnet50_fpn(num_classes)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-if not os.path.exists(options.input_checkpoint):
-    print(options.input_checkpoint + ' file does not exists')
+if not os.path.exists(checkpoint_path):
+    print(checkpoint_path + ' file does not exists')
     exit(0)
 else:
-    print("[info] loading model from "+ options.input_checkpoint)
+    print("[info] loading model from "+ checkpoint_path)
 
 # loading saved model weights
-model.load_state_dict(torch.load(options.input_checkpoint))
+model.load_state_dict(torch.load(checkpoint_path))
 # move model to the right device
 model.to(device)
 # evaluation mode ON
 model.eval()
 
 # check if test directory exist
-if not os.path.exists(options.test_path):
-    print(options.test_path + ' does not exists')
+if not os.path.exists(test_images_path):
+    print(test_images_path + ' does not exists')
     exit(0)
 
-test_dir = options.test_path
-test_images = os.listdir(test_dir)
+test_images = os.listdir(test_images_path)
 
-if not os.path.exists('evaluation'):
-    os.makedirs('evaluation')
+# check if evaluation folder exists, otherwise create it
+if not os.path.exists('evaluations'):
+    os.makedirs('evaluations')
 
-with open('evaluation/predictions'+str(options.input_checkpoint[20:-4])+'.csv', 'wt') as csvfile:
+with open('evaluations/predictions.csv', 'wt') as csvfile:
     filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     filewriter.writerow(['image_id', 'xmin', 'ymin', 'xmax', 'ymax', 'label', 'prob'])
     
     print('[info]', len(test_images),'images loaded for test.\n')
     count = 0
     for img_path in test_images:
-        img = utils.read_image(os.path.join(test_dir, img_path))
-        # Rescaling Images
-        C, H, W = img.shape
-        min_size = 600
-        max_size = 1024
-        scale1 = min_size / min(H, W)
-        scale2 = max_size / max(H, W)
-        scale = min(scale1, scale2)
-        img = img / 255.
-        img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
-
-        # Normalizing image
-        normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        img = normalize(torch.from_numpy(img))
+        img = cv2.imread(os.path.join(test_images_path, img_path))
         
-	# read original image for printing bounding boxes on it
-        image_to_write = cv2.imread(os.path.join('../data/images', img_path))
+        img = utils.distance_transform(img)
+
+        img = img.astype('float32')
+
+        if img.ndim == 2:
+            # reshape (H, W) -> (1, H, W)
+            img = img[np.newaxis]
+        else:
+            # transpose (H, W, C) -> (C, H, W)
+            img = img.transpose((2, 0, 1))
+
+        C, H, W = img.shape
+        img = utils.preprocess_image(img)
+        
+	    # read original image for printing bounding boxes on it
+        image_to_write = cv2.imread(os.path.join(test_images_path, img_path))
 
         with torch.no_grad():
             prediction = model([img.to(device)])
@@ -138,8 +143,8 @@ with open('evaluation/predictions'+str(options.input_checkpoint[20:-4])+'.csv', 
                         ])
         count += 1
         print("["+str(count)+"/"+str(len(test_images))+"] | image_id:", img_path)
-        if not os.path.exists('output'):
-            os.makedirs('output')
-        cv2.imwrite('output/'+img_path, image_to_write)
+        if not os.path.exists('predictions'):
+            os.makedirs('predictions')
+        cv2.imwrite('predictions/'+img_path, image_to_write)
 
 print('[info] testing is completed.')

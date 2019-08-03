@@ -1,0 +1,27 @@
+dataset:
+  train_images_path : 'data/train/'
+  train_labels_path: 'data/train.csv'
+
+train:
+  check_freq: 10
+  output_weight_path: 'saved_model'
+  input_weight_path: 'saved_model'
+  num_epochs: 100
+  freeze_first_block: True
+  pretrained: True
+  learning_rate: 0.003
+  momentum: 0.9
+  weight_decay: 0.0005
+  step_size: 40
+  gamma: 0.2
+  binarize: True
+  rgb_weightage: False
+
+transform:
+  horizontal_flips: False
+
+infer:
+  test_images_path: 'data/test/'
+  checkpoint_path: 'saved_model/model.pth'
+
+debug_mode: 0

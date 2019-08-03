@@ -1,47 +1,47 @@
 import os
 import torch
 import utils
-from torchvision import transforms as tvtsf
-from skimage import transform as sktsf
+
 import numpy as np
 import pandas as pd
+import cv2
 
-train_path = "../data/70-20-10/b/train"
-train_label = "../data/70-20-10/b/train.csv"
+from parser import params
 
 class TableDataset(torch.utils.data.Dataset):
-    def __init__(self, root, transforms=None):
+    def __init__(self, root, train_images_path, train_labels_path, transforms=None):
         self.root = root
         self.transforms = transforms
+        self.train_images_path = train_images_path
+        self.train_labels_path = train_labels_path
         # load all image files
-        self.imgs = list(sorted(os.listdir(os.path.join(root, train_path))))
+        self.imgs = list(sorted(os.listdir(os.path.join(root, self.train_images_path ))))
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.root, train_path, self.imgs[idx])
-        # image = Image.open(img_path).convert("RGB")
-        image = utils.read_image(img_path)
-
-        # Rescaling Images
-        C, H, W = image.shape
-        min_size = 600
-        max_size = 1024
-        scale1 = min_size / min(H, W)
-        scale2 = max_size / max(H, W)
-        scale = min(scale1, scale2)
-        image = image / 255.
-        image = sktsf.resize(image, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
-
-        # Normalizing image
-        normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
-        image = normalize(torch.from_numpy(image))
-        image = image.numpy()
+        img_path = os.path.join(self.root, self.train_images_path , self.imgs[idx])
         
-        if not os.path.isfile(os.path.join(self.root, train_label)):
-            print('[error]', train_label+' file not found')
+        image = cv2.imread(img_path)
+        
+        image = utils.distance_transform(image)
+
+        image = image.astype('float32')
+
+        if image.ndim == 2:
+            # reshape (H, W) -> (1, H, W)
+            image = image[np.newaxis]
+        else:
+            # transpose (H, W, C) -> (C, H, W)
+            image = image.transpose((2, 0, 1))
+
+        C, H, W = image.shape
+        image = utils.preprocess_image(image)
+        image = image.numpy()
+
+        if not os.path.isfile(os.path.join(self.root, self.train_labels_path)):
+            print('[error]', self.train_labels_path+' file not found')
             exit(0)
 
-        train_labels = pd.read_csv(os.path.join(self.root, train_label))
+        train_labels = pd.read_csv(os.path.join(self.root, self.train_labels_path))
 
         old_boxes = []
         num_objs = 0

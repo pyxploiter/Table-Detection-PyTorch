@@ -5,17 +5,18 @@ from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.utils import load_state_dict_from_url
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from parser import params
 
-def frcnn_resnet50_fpn(num_classes, freeze_first_block=True):
+def frcnn_resnet50_fpn(num_classes):
     # load a model pre-trained pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=params['pretrained'])
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
     
-    ######## This block contains code for freezing layers #########
-    if freeze_first_block:
+    # This block contains code for freezing layers
+    if params['freeze_first_block']:
         d = 0
         for n, block in model.backbone.named_children():
             for name,param in block.named_parameters():
@@ -23,11 +24,10 @@ def frcnn_resnet50_fpn(num_classes, freeze_first_block=True):
                         param.requires_grad = False
                         # print(n,"\t", name, param.requires_grad)
                     d+=1
-    ###############################################################
     return model
 
-def frcnn_resnet50(num_classes, pretrained_backbone=False, freeze_first_block=True, **kwargs):
-    resnet50 = torchvision.models.resnet50(pretrained=pretrained_backbone)
+def frcnn_resnet50(num_classes, **kwargs):
+    resnet50 = torchvision.models.resnet50(pretrained=params['pretrained'])
     backbone = nn.Sequential(*list(resnet50.children())[:-2])
     backbone.out_channels = 2048
 
@@ -57,7 +57,7 @@ def frcnn_resnet50(num_classes, pretrained_backbone=False, freeze_first_block=Tr
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
 
     ######## This block contains code for freezing layers #########
-    if freeze_first_block:
+    if params['freeze_first_block']:
         d = 0
         for n, block in model.backbone.named_children():
             for name,param in block.named_parameters():
@@ -69,8 +69,8 @@ def frcnn_resnet50(num_classes, pretrained_backbone=False, freeze_first_block=Tr
 
     return model
 
-def frcnn_resnet101_fpn(num_classes, pretrained_backbone=True, freeze_first_block=True, **kwargs):
-    backbone = resnet_fpn_backbone('resnet101', pretrained_backbone)
+def frcnn_resnet101_fpn(num_classes, **kwargs):
+    backbone = resnet_fpn_backbone('resnet101', params['pretrained'])
     model = FasterRCNN(backbone, num_classes, **kwargs)
 
      # get number of input features for the classifier
@@ -79,7 +79,7 @@ def frcnn_resnet101_fpn(num_classes, pretrained_backbone=True, freeze_first_bloc
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
 
     ######## This block contains code for freezing layers #########
-    if freeze_first_block:
+    if params['freeze_first_block']:
         d = 0
         for n, block in model.backbone.named_children():
             for name,param in block.named_parameters():
@@ -90,8 +90,8 @@ def frcnn_resnet101_fpn(num_classes, pretrained_backbone=True, freeze_first_bloc
     ###############################################################
     return model
 
-def frcnn_resnet101(num_classes, pretrained_backbone=False, freeze_first_block=True, **kwargs):
-    resnet101 = torchvision.models.resnet101(pretrained=pretrained_backbone)
+def frcnn_resnet101(num_classes, **kwargs):
+    resnet101 = torchvision.models.resnet101(pretrained=params['pretrained'])
     backbone = nn.Sequential(*list(resnet101.children())[:-2])
     backbone.out_channels = 2048
 
@@ -121,7 +121,7 @@ def frcnn_resnet101(num_classes, pretrained_backbone=False, freeze_first_block=T
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
 
     ######## This block contains code for freezing layers #########
-    if freeze_first_block:
+    if params['freeze_first_block']:
         d = 0
         for n, block in model.backbone.named_children():
             for name,param in block.named_parameters():

@@ -3,6 +3,7 @@ import torch
 
 from torchvision.transforms import functional as F
 import transforms as T
+from parser import params
 
 class Compose(object):
     def __init__(self, transforms):
@@ -37,8 +38,7 @@ def get_transform(train):
     # converts the image, a PIL image, into a PyTorch Tensor
     transforms.append(T.ToTensor())
     if train:
-        horizontal_flips = False
-        if horizontal_flips:
+        if params['horizontal_flip']:
             # during training, randomly flip the training images
             # and ground-truth for data augmentation
             transforms.append(T.RandomHorizontalFlip(0.5))

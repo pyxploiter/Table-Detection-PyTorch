@@ -1,3 +1,0 @@
-python infer.py -p ../data/70-20-10/b/test -c saved_model/model_ep80.pth
-python infer.py -p ../data/70-20-10/b/test -c saved_model/model_ep90.pth
-python infer.py -p ../data/70-20-10/b/test -c saved_model/model_ep100.pth

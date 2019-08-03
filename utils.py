@@ -4,17 +4,18 @@ from collections import defaultdict, deque
 import datetime
 import pickle
 import time
+import errno
+import os
 
 import cv2
 import numpy as np
 from PIL import Image
-
+from skimage import transform as sktsf
 import torch
 import torch.distributed as dist
+from torchvision import transforms as tvtsf
 
-import errno
-import os
-
+from parser import params
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -91,7 +92,6 @@ def read_image(path, dtype=np.float32, color=True):
     Returns:
         ~numpy.ndarray: An image.
     """
-    
     img = cv2.imread(path)
     img = img.astype('float32')
 
@@ -134,6 +134,48 @@ def resize_bbox(bbox, in_size, out_size):
     bbox[:, 1] = x_scale * bbox[:, 1]
     bbox[:, 3] = x_scale * bbox[:, 3]
     return bbox
+
+def preprocess_image(image):
+    # Rescaling Images
+    C, H, W = image.shape
+    min_size = 600
+    max_size = 1024
+    scale1 = min_size / min(H, W)
+    scale2 = max_size / max(H, W)
+    scale = min(scale1, scale2)
+    image = image / 255.
+    image = sktsf.resize(image, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
+
+    # Normalizing image
+    normalize = tvtsf.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225])
+    image = normalize(torch.from_numpy(image))
+
+    return image
+
+def distance_transform(img):
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    if params['binarize']:
+        img = cv2.adaptiveThreshold(
+            img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+    if params['rgb_weightage']:
+        # perform transformations on image
+        b = cv2.distanceTransform(img, distanceType=cv2.DIST_L2, maskSize=3)
+        g = (
+                    cv2.distanceTransform(img, distanceType=cv2.DIST_L1, maskSize=3) * 0.33
+            ) + (b * 0.67)
+        r = (
+                    cv2.distanceTransform(img, distanceType=cv2.DIST_C, maskSize=3) * 0.33
+            ) + (b * 0.67)
+    else:
+        b = cv2.distanceTransform(img, distanceType=cv2.DIST_L2, maskSize=3)
+        g = cv2.distanceTransform(img, distanceType=cv2.DIST_L1, maskSize=3)
+        r = cv2.distanceTransform(img, distanceType=cv2.DIST_C, maskSize=3)
+
+    # merge the transformed channels back to an image
+    return cv2.merge((b, g, r))
 
 def all_gather(data):
     """

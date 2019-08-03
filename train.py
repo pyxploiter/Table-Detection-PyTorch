@@ -14,25 +14,31 @@ import utils
 from transforms import get_transform
 from dataset import TableDataset
 import models
+from parser import params
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-p", "--path", dest="train_path", help="Path to training data images.", default="data/train")
-parser.add_argument("-l", "--label", dest="train_label", help="Path to training data labels.", default="data/train.csv")
-parser.add_argument("--hf", dest="horizontal_flips", help="Augment with horizontal flips in training. (Default=false).", action="store_true", default=False)
-parser.add_argument("-e","--num_epochs", type=int, dest="num_epochs", help="Number of epochs.", default=10)
+parser.add_argument("-p", "--path", dest="train_images_path", help="Path to training data images.")
+parser.add_argument("-l", "--label", dest="train_labels_path", help="Path to training data labels.")
+parser.add_argument("-e","--num_epochs", type=int, dest="num_epochs", help="Number of epochs.")
 parser.add_argument("--cf","--check_freq", type=int, dest="check_freq", help="Checkpoint frequency.")
 parser.add_argument("-o","--output_weight_path", dest="output_weight_path", help="Output path for weights.", default='saved_model')
 parser.add_argument("-i","--input_weight_path", dest="input_weight_path", help="Input path for weights.")
 
 options = parser.parse_args()
 
-output_weight_path = "saved_model"
-check_freq = 10
-num_epochs = 100
+# read command line arguments if given, otherwise read it from config file
+train_images_path = options.train_images_path if options.train_images_path else params['train_images_path'] 
+train_labels_path = options.train_labels_path if options.train_labels_path else params['train_labels_path']
+num_epochs = options.num_epochs if options.num_epochs else params['num_epochs']
+check_freq = options.check_freq if options.check_freq else params['check_freq']
+output_weight_path = options.output_weight_path if options.output_weight_path else params['output_weight_path']
+input_weight_path = options.input_weight_path if options.input_weight_path else params['input_weight_path']
 
 def init_msg():
     print('---------------------------------------------------------')
+    print('[info] training images path: '+ train_images_path)
+    print('[info] training labels path: '+ train_labels_path)
     print('[info] total epochs:', num_epochs)
     if check_freq:
         print('[info] model weights will saved in /'+output_weight_path+' folder after every', options.check_freq, 'epochs')
@@ -40,6 +46,7 @@ def init_msg():
         print('[info] model weights will saved in /'+output_weight_path+' folder')
     print('---------------------------------------------------------')
 
+# saves model architecture in json file
 def save_model_design(model, output_name="frcnn"):
     if not os.path.exists("models"):
         os.makedirs('models')
@@ -47,6 +54,7 @@ def save_model_design(model, output_name="frcnn"):
     f.write(str(model))
     f.close()
 
+# loads model weights from file
 def load_weights(model, model_path):
     # if checkpoint saved, continue training from that checkpoin
     if os.path.exists(model_path):
@@ -54,6 +62,7 @@ def load_weights(model, model_path):
         print("model loaded from "+model_path)
     return model
 
+# for each epoch, this function is called
 def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_freq):
     step = 0
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -105,23 +114,17 @@ def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_
             # adding total loss
             writer.add_scalar('loss: ', loss_value, step)
 
-dataset = TableDataset(os.getcwd(), get_transform(train=True))
-dataset_test = TableDataset(os.getcwd(), get_transform(train=False))
+dataset = TableDataset(os.getcwd(), train_images_path, train_labels_path, get_transform(train=True))
 
 # split the dataset in train and test set
 torch.manual_seed(1)
 indices = torch.randperm(len(dataset)).tolist()
-# dataset = torch.utils.data.Subset(dataset, indices[:-50])
-dataset = torch.utils.data.Subset(dataset, indices)
-dataset_test = torch.utils.data.Subset(dataset_test, indices[-50:])
+
+dataset = torch.utils.data.Subset(dataset, indices[:20])
 
 # define training and validation data loaders
 data_loader = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=True, num_workers=2,
-    collate_fn=utils.collate_fn)
-
-data_loader_test = torch.utils.data.DataLoader(
-    dataset_test, batch_size=1, shuffle=False, num_workers=2,
     collate_fn=utils.collate_fn)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -130,25 +133,24 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 num_classes = 2
 
 # get the model using our helper function
-model = models.frcnn_resnet101(num_classes)
+model = models.frcnn_resnet50_fpn(num_classes)
 
-# save_model_design(model)
-
-# load_weights(model, "saved_model/model.pth")
+# load weights
+load_weights(model, input_weight_path)
 
 # move model to the right device
 model.to(device)
 
 # construct an optimizer
-params = [p for p in model.parameters() if p.requires_grad]
+model_params = [p for p in model.parameters() if p.requires_grad]
 
-optimizer = torch.optim.SGD(params, lr=0.003,
-                            momentum=0.9, weight_decay=0.0005)
+optimizer = torch.optim.SGD(model_params, lr=params['learning_rate'],
+                            momentum=params['momentum'], weight_decay=params['weight_decay'])
 
 # and a learning rate scheduler which decreases the learning rate by 10x
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                               step_size=40,
-                                               gamma=0.1)
+                                               step_size=params['step_size'],
+                                               gamma=params['gamma'])
 
 # create the summary writer
 writer = SummaryWriter()
@@ -179,5 +181,6 @@ for epoch in range(num_epochs):
         torch.save(model.state_dict(), output_weight_path+'/model_ep{}.pth'.format(epoch+1))
 
     torch.cuda.empty_cache()
+
 print('[info] training is completed.')
 writer.close()
