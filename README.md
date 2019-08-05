@@ -7,22 +7,19 @@
 $ git clone https://github.com/xploiter-projects/Table-Detection-PyTorch.git
 $ cd Table-Detection-PyTorch
 $ pip install -r requirements.txt
-$ git clone https://github.com/cocodataset/cocoapi.git
-$ cd cocoapi/PythonAPI
-$ python setup.py build_ext install
 ```
 
 ### Training
 ```
-usage: train.py [-h] [-p TRAIN_PATH] [-l TRAIN_LABEL] [--hf] [-e NUM_EPOCHS]
+usage: train.py [-h] [-p TRAIN_IMAGES_PATH] [-l TRAIN_LABELS_PATH] [--hf] [-e NUM_EPOCHS]
                 [--cf CHECK_FREQ] [-o OUTPUT_WEIGHT_PATH]
                 [-i INPUT_WEIGHT_PATH]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -p TRAIN_PATH, --path TRAIN_PATH
+  -p TRAIN_IMAGES_PATH, --path TRAIN_IMAGES_PATH
                         Path to training data images.
-  -l TRAIN_LABEL, --label TRAIN_LABEL
+  -l TRAIN_LABELS_PATH, --label TRAIN_LABELS_PATH
                         Path to training data labels.
   --hf                  Augment with horizontal flips in training.
                         (Default=false).
@@ -37,11 +34,11 @@ optional arguments:
 ```
 ### Testing
 ```
-usage: infer.py [-h] [-p TEST_PATH] -c INPUT_CHECKPOINT
+usage: infer.py [-h] [-p TEST_IMAGES_PATH] [-c CHECKPOINT_PATH]
 
 optional arguments:
   -h, --help           show this help message and exit
-  -p TEST_PATH         Path to test data images.
-  -c INPUT_CHECKPOINT  Input checkpoint file path.
+  -p TEST_IMAGES_PATH         Path to test data images.
+  -c CHECKPOINT_PATH  Input checkpoint file path.
 ```
 

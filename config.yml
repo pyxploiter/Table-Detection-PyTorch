@@ -5,7 +5,7 @@ dataset:
 train:
   check_freq: 10
   output_weight_path: 'saved_model'
-  input_weight_path: 'saved_model'
+  input_weight_path: ''
   num_epochs: 100
   freeze_first_block: True
   pretrained: True
@@ -22,6 +22,6 @@ transform:
 
 infer:
   test_images_path: 'data/test/'
-  checkpoint_path: 'saved_model/model.pth'
+  checkpoint_path: ''
 
 debug_mode: 0

@@ -56,15 +56,14 @@ def save_model_design(model, output_name="frcnn"):
 
 # loads model weights from file
 def load_weights(model, model_path):
-    # if checkpoint saved, continue training from that checkpoin
-    if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path))
-        print("model loaded from "+model_path)
+    # load model weights from model_path
+    model.load_state_dict(torch.load(model_path))
+    print("model loaded from "+model_path)
     return model
 
 # for each epoch, this function is called
-def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_freq):
-    step = 0
+def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, step, print_freq):
+    #step = epoch*1947       # multiply with number of training sampless
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
@@ -77,7 +76,6 @@ def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_
         wp_lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
-        step += 1
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -113,6 +111,8 @@ def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_
                 writer.add_scalar(key, val.item(), step)
             # adding total loss
             writer.add_scalar('loss: ', loss_value, step)
+        print(step, epoch)
+        step += 1
 
 dataset = TableDataset(os.getcwd(), train_images_path, train_labels_path, get_transform(train=True))
 
@@ -135,8 +135,9 @@ num_classes = 2
 # get the model using our helper function
 model = models.frcnn_resnet50_fpn(num_classes)
 
-# load weights
-load_weights(model, input_weight_path)
+if os.path.exists(input_weight_path):
+    # load model weights
+    load_weights(model, input_weight_path)
 
 # move model to the right device
 model.to(device)
@@ -157,12 +158,13 @@ writer = SummaryWriter()
 
 init_msg()
 
+step = 0
 for epoch in range(num_epochs):
   	# enter into training mode
     model.train()
     #train one epoch
-    train_one_epoch(model, optimizer, data_loader, writer, device, epoch, print_freq=200)
-    
+    train_one_epoch(model, optimizer, data_loader, writer, device, epoch, step, print_freq=200)
+    step += len(dataset)
     # update the learning rate after the step-size defined in LR scheduler
     if lr_scheduler.get_lr()[0] > 0.000001:
         lr_scheduler.step()
