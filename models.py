@@ -5,29 +5,19 @@ from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.utils import load_state_dict_from_url
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
-from parser import params
 
 def frcnn_resnet50_fpn(num_classes):
     # load a model pre-trained pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=params['pretrained'])
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
     
-    # This block contains code for freezing layers
-    if params['freeze_first_block']:
-        d = 0
-        for n, block in model.backbone.named_children():
-            for name,param in block.named_parameters():
-                    if( d < 11 ):
-                        param.requires_grad = False
-                        # print(n,"\t", name, param.requires_grad)
-                    d+=1
     return model
 
 def frcnn_resnet50(num_classes, **kwargs):
-    resnet50 = torchvision.models.resnet50(pretrained=params['pretrained'])
+    resnet50 = torchvision.models.resnet50(pretrained=True)
     backbone = nn.Sequential(*list(resnet50.children())[:-2])
     backbone.out_channels = 2048
 
@@ -55,43 +45,20 @@ def frcnn_resnet50(num_classes, **kwargs):
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-
-    ######## This block contains code for freezing layers #########
-    if params['freeze_first_block']:
-        d = 0
-        for n, block in model.backbone.named_children():
-            for name,param in block.named_parameters():
-                    if( d < 15 ):
-                        param.requires_grad = False
-                        # print(n,"\t", name, param.requires_grad)
-                    d+=1
-    ###############################################################
-
     return model
 
 def frcnn_resnet101_fpn(num_classes, **kwargs):
-    backbone = resnet_fpn_backbone('resnet101', params['pretrained'])
+    backbone = resnet_fpn_backbone('resnet101', True)
     model = FasterRCNN(backbone, num_classes, **kwargs)
 
      # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-
-    ######## This block contains code for freezing layers #########
-    if params['freeze_first_block']:
-        d = 0
-        for n, block in model.backbone.named_children():
-            for name,param in block.named_parameters():
-                    if( d < 11 ):
-                        param.requires_grad = False
-                        # print(n,"\t", name, param.requires_grad)
-                    d+=1
-    ###############################################################
     return model
 
 def frcnn_resnet101(num_classes, **kwargs):
-    resnet101 = torchvision.models.resnet101(pretrained=params['pretrained'])
+    resnet101 = torchvision.models.resnet101(pretrained=True)
     backbone = nn.Sequential(*list(resnet101.children())[:-2])
     backbone.out_channels = 2048
 
@@ -119,16 +86,4 @@ def frcnn_resnet101(num_classes, **kwargs):
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
-
-    ######## This block contains code for freezing layers #########
-    if params['freeze_first_block']:
-        d = 0
-        for n, block in model.backbone.named_children():
-            for name,param in block.named_parameters():
-                    if( d < 15 ):
-                        param.requires_grad = False
-                        # print(n,"\t", name, param.requires_grad)
-                    d+=1
-    ###############################################################
-
     return model
