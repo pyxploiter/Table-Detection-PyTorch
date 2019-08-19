@@ -23,7 +23,6 @@ class TableDataset(torch.utils.data.Dataset):
         image = cv2.imread(img_path)
         
         image = utils.distance_transform(image)
-
         image = image.astype('float32')
 
         if image.ndim == 2:
@@ -32,8 +31,9 @@ class TableDataset(torch.utils.data.Dataset):
         else:
             # transpose (H, W, C) -> (C, H, W)
             image = image.transpose((2, 0, 1))
-
+            
         C, H, W = image.shape
+        
         image = utils.preprocess_image(image)
         image = image.numpy()
 

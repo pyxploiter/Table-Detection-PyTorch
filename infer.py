@@ -54,10 +54,10 @@ if not os.path.exists(test_images_path):
 test_images = os.listdir(test_images_path)
 
 # check if evaluation folder exists, otherwise create it
-if not os.path.exists('evaluations'):
-    os.makedirs('evaluations')
+if not os.path.exists('evaluation'):
+    os.makedirs('evaluation')
 
-with open('evaluations/predictions.csv', 'wt') as csvfile:
+with open('evaluation/predicted_bboxes.csv', 'wt') as csvfile:
     filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     filewriter.writerow(['image_id', 'xmin', 'ymin', 'xmax', 'ymax', 'label', 'prob'])
     
@@ -66,17 +66,15 @@ with open('evaluations/predictions.csv', 'wt') as csvfile:
     for img_path in test_images:
         img = cv2.imread(os.path.join(test_images_path, img_path))
         
-        img = utils.distance_transform(img)
-
+        # img = utils.distance_transform(img)
         img = img.astype('float32')
 
         if img.ndim == 2:
             # reshape (H, W) -> (1, H, W)
-            img = img[np.newaxis]
+            immg = img[np.newaxis]
         else:
             # transpose (H, W, C) -> (C, H, W)
             img = img.transpose((2, 0, 1))
-
         C, H, W = img.shape
         img = utils.preprocess_image(img)
         
