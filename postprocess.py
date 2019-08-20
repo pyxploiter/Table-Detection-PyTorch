@@ -7,7 +7,7 @@ from PIL import Image
 
 NMS_FLAG = False
 OCR_FLAG = True
-RESIZE_FLAG = False
+RESIZE_FLAG = True
 RESIZE_WIDTH = 2500
 image_source_dir = "../data/images"
 ocr_data_dir = "../data/ocr"
@@ -93,9 +93,9 @@ def remove_image_background(image):
 
     return bg_removed
 
-def perform_ocr(image, dst):
+def perform_ocr(src, dst):
     """performs ocr of image located at 'src' and saves the ocr data in 'dst' in pickle format"""
-    # image = cv2.imread(src)
+    image = cv2.imread(src)
     if RESIZE_FLAG:
         org_image = constant_aspect_resize(image, width=RESIZE_WIDTH)
         image = np.copy(org_image)
@@ -110,10 +110,10 @@ def perform_ocr(image, dst):
     with open(dst, "wb") as handle:
         pickle.dump(ocr, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-def read_ocr(image, shape, ocr_file):
+def read_ocr(image_path, shape, ocr_file):
     if not os.path.isfile(ocr_file):
         perform_ocr(
-            image,
+            image_path,
             ocr_file,
         )
 
@@ -200,7 +200,7 @@ def post_process(predictions, ground_truth, key, image, shape):
             rcnn_bounding_boxes, rcnn_removed_boxes = nms(predictions[key])
         else:
             rcnn_bounding_boxes = predictions[key]
-        if not RESIZE_FLAG:
+        if RESIZE_FLAG:
             tmp = RESIZE_WIDTH / shape[1]
             rcnn_bounding_boxes = [Rect(int(b.x1 * tmp), int(b.y1 * tmp), int(b.w * tmp), int(b.h * tmp), b.prob)
                                     for b in rcnn_bounding_boxes]
@@ -210,7 +210,7 @@ def post_process(predictions, ground_truth, key, image, shape):
 
     if key in ground_truth:
         ground_truth_bounding_boxes = ground_truth[key]
-        if not RESIZE_FLAG:
+        if RESIZE_FLAG:
             tmp = RESIZE_WIDTH / shape[1]
             ground_truth_bounding_boxes = [Rect(int(b.x1 * tmp), int(b.y1 * tmp), int(b.w * tmp), int(b.h * tmp))
                                             for b in ground_truth_bounding_boxes]
@@ -221,7 +221,7 @@ def post_process(predictions, ground_truth, key, image, shape):
         )
 
     if OCR_FLAG:
-        ocr = read_ocr(image, shape, os.path.join(ocr_data_dir, key.replace('.png', '.pkl')))
+        ocr = read_ocr(os.path.join(image_source_dir, key), shape, os.path.join(ocr_data_dir, key.replace('.png', '.pkl')))
 
         for j in ocr:
             cv2.rectangle(
