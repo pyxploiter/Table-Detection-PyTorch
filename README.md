@@ -33,7 +33,7 @@ optional arguments:
                         Input path for weights.
 ```
 
-```example: python train.py -p ./data/train -l ./data/train.csv -e 70 --cf 10```
+```Example: python train.py -p ./data/train -l ./data/train.csv -e 70 --cf 10```
 
 ### Testing
 ```
@@ -45,8 +45,8 @@ optional arguments:
   -c CHECKPOINT_PATH  Input checkpoint file path.
 ```
 
-```example: python infer.py -p ./data/test -c saved_model/model_ep60.pth```
+```Example: python infer.py -p ./data/test -c saved_model/model_ep60.pth```
 
 ### Evaluating
 
-```example: python evaluate.py ./data/test.csv evaluations/predictions.csv ./data/images/ --ocr ./data/torchocr/```
+```Example: python evaluate.py ./data/GroundTruth_XML ./evaluation/predicted_bboxes.csv ./evaluation -i ../data/test -d 2```
