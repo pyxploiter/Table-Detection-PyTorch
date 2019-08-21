@@ -1,1 +1,1 @@
-python eval.py ./data/testxml ./evaluation/predicted_bboxes.csv ./evaluation -i ../data/newtest -d 2
+python evaluate.py ./data/GroundTruth_XML ./evaluation/predicted_bboxes.csv ./evaluation -i ../data/test -d 2
