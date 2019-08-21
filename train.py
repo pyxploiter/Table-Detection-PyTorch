@@ -91,7 +91,6 @@ def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, step, 
         
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
-            print(loss_dict_reduced)
             sys.exit(1)
 
         optimizer.zero_grad()
@@ -111,7 +110,6 @@ def train_one_epoch(model, optimizer, data_loader, writer, device, epoch, step, 
                 writer.add_scalar(key, val.item(), step)
             # adding total loss
             writer.add_scalar('loss: ', loss_value, step)
-        print(step, epoch)
         step += 1
 
 dataset = TableDataset(os.getcwd(), train_images_path, train_labels_path, get_transform(train=True))
