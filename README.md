@@ -4,7 +4,7 @@
 
 ### Setup
 ```
-$ git clone https://github.com/xploiter-projects/Table-Detection-PyTorch.git
+$ git clone https://github.com/pyxploiter/Table-Detection-PyTorch.git
 $ cd Table-Detection-PyTorch
 $ pip install -r requirements.txt
 ```
